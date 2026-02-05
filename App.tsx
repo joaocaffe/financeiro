@@ -356,13 +356,19 @@ const Dashboard: React.FC = () => {
       const [txY, txM, txD] = tx.date.split('-').map(Number);
       let baseDate;
 
-      if (tx.paymentStartMonth) {
-        const [pmY, pmM] = tx.paymentStartMonth.split('-').map(Number);
-        // Use the day from the original transaction date (txD), but year/month from paymentStartMonth
-        // Month in Date constructor is 0-indexed (pmM - 1)
-        baseDate = new Date(pmY, pmM - 1, txD);
-      } else {
+      if (tx.isSubscription) {
+        // For subscriptions, strictly honor the input Date as the start.
+        // This ensures "25/01" appears as "25/01", then repeats "25/02", etc.
         baseDate = new Date(txY, txM - 1, txD);
+      } else {
+        if (tx.paymentStartMonth) {
+          const [pmY, pmM] = tx.paymentStartMonth.split('-').map(Number);
+          // Use the day from the original transaction date (txD), but year/month from paymentStartMonth
+          // Month in Date constructor is 0-indexed (pmM - 1)
+          baseDate = new Date(pmY, pmM - 1, txD);
+        } else {
+          baseDate = new Date(txY, txM - 1, txD);
+        }
       }
 
       if (tx.isSubscription) {
@@ -611,101 +617,105 @@ const Dashboard: React.FC = () => {
               Valor {sortConfig.key === 'value' && (sortConfig.direction === 'asc' ? <ArrowUp size={10} /> : <ArrowDown size={10} />)}
             </button>
           </div>
-          <div className="relative" ref={visibilityMenuRef}>
-            <button
-              onClick={() => setIsVisibilityMenuOpen(!isVisibilityMenuOpen)}
-              className={`p-2 rounded-full transition-all ${isVisibilityMenuOpen ? 'bg-blue-50 text-blue-600' : 'text-slate-400 hover:bg-slate-100'}`}
-              title="Colunas Visíveis"
-            >
-              <Eye size={20} />
-            </button>
-            {isVisibilityMenuOpen && (
-              <div className="absolute right-0 mt-2 w-48 bg-white rounded-3xl shadow-2xl border border-slate-100 p-3 z-50 animate-in fade-in zoom-in-95 duration-150 origin-top-right">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 py-1.5 border-b border-slate-50 mb-2">Colunas</p>
-                <div className="grid grid-cols-1 gap-1">
-                  {Object.keys(visibility).map((key) => (
+          <div className="flex flex-col gap-2 items-center">
+            <div className="relative" ref={visibilityMenuRef}>
+              <button
+                onClick={() => setIsVisibilityMenuOpen(!isVisibilityMenuOpen)}
+                className={`p-2 rounded-full transition-all ${isVisibilityMenuOpen ? 'bg-blue-50 text-blue-600' : 'text-slate-400 hover:bg-slate-100'}`}
+                title="Colunas Visíveis"
+              >
+                <Eye size={20} />
+              </button>
+              {isVisibilityMenuOpen && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-3xl shadow-2xl border border-slate-100 p-3 z-50 animate-in fade-in zoom-in-95 duration-150 origin-top-right">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 py-1.5 border-b border-slate-50 mb-2">Colunas</p>
+                  <div className="grid grid-cols-1 gap-1">
+                    {Object.keys(visibility).map((key) => (
+                      <button
+                        key={key}
+                        onClick={() => setVisibility(v => ({ ...v, [key]: !v[key as keyof ColumnVisibility] }))}
+                        className={`flex items-center justify-between text-[11px] font-bold px-3 py-2 rounded-xl transition-all ${visibility[key as keyof ColumnVisibility] ? 'text-blue-700 bg-blue-50' : 'text-slate-400 hover:bg-slate-50'}`}
+                      >
+                        <span>{key === 'description' ? 'Descrição' : key === 'location' ? 'Local' : key === 'date' ? 'Data' : key === 'value' ? 'Valor' : key === 'installments' ? 'Parcelas' : 'Usuário'}</span>
+                        {visibility[key as keyof ColumnVisibility] ? <Eye size={14} /> : <EyeOff size={14} />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="relative" ref={filterRef}>
+              <button
+                onClick={() => setIsFilterMenuOpen(!isFilterMenuOpen)}
+                className={`p-2 rounded-full transition-all ${isFilterMenuOpen || !selectedUserIds.includes('all') || !selectedCardIds.includes('all') ? 'bg-blue-50 text-blue-600' : 'text-slate-400 hover:bg-slate-100'}`}
+                title="Configurar Filtros"
+              >
+                <SlidersHorizontal size={20} />
+              </button>
+
+              {isFilterMenuOpen && (
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-3xl shadow-2xl border border-slate-100 p-3 z-50 animate-in fade-in zoom-in-95 duration-150 origin-top-right">
+                  <div className="px-2 py-2 mb-2 border-b border-slate-50 flex justify-between items-center">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtros Avançados</p>
                     <button
-                      key={key}
-                      onClick={() => setVisibility(v => ({ ...v, [key]: !v[key as keyof ColumnVisibility] }))}
-                      className={`flex items-center justify-between text-[11px] font-bold px-3 py-2 rounded-xl transition-all ${visibility[key as keyof ColumnVisibility] ? 'text-blue-700 bg-blue-50' : 'text-slate-400 hover:bg-slate-50'}`}
+                      onClick={() => setIsMultiSelectMode(!isMultiSelectMode)}
+                      className={`p-1.5 rounded-lg transition-all ${isMultiSelectMode ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-50'}`}
+                      title="Ativar Multi-seleção"
                     >
-                      <span>{key === 'description' ? 'Descrição' : key === 'location' ? 'Local' : key === 'date' ? 'Data' : key === 'value' ? 'Valor' : key === 'installments' ? 'Parcelas' : 'Usuário'}</span>
-                      {visibility[key as keyof ColumnVisibility] ? <Eye size={14} /> : <EyeOff size={14} />}
+                      <ListChecks size={16} />
                     </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="relative" ref={filterRef}>
-            <button
-              onClick={() => setIsFilterMenuOpen(!isFilterMenuOpen)}
-              className={`p-2 rounded-full transition-all ${isFilterMenuOpen || !selectedUserIds.includes('all') || !selectedCardIds.includes('all') ? 'bg-blue-50 text-blue-600' : 'text-slate-400 hover:bg-slate-100'}`}
-              title="Configurar Filtros"
-            >
-              <SlidersHorizontal size={20} />
-            </button>
-
-            {isFilterMenuOpen && (
-              <div className="absolute right-0 mt-2 w-56 bg-white rounded-3xl shadow-2xl border border-slate-100 p-3 z-50 animate-in fade-in zoom-in-95 duration-150 origin-top-right">
-                <div className="px-2 py-2 mb-2 border-b border-slate-50 flex justify-between items-center">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtros Avançados</p>
-                  <button
-                    onClick={() => setIsMultiSelectMode(!isMultiSelectMode)}
-                    className={`p-1.5 rounded-lg transition-all ${isMultiSelectMode ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-50'}`}
-                    title="Ativar Multi-seleção"
-                  >
-                    <ListChecks size={16} />
-                  </button>
-                </div>
-
-                <div className="space-y-4 max-h-80 overflow-y-auto no-scrollbar py-2">
-                  <div>
-                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter px-2 mb-2">Usuários</p>
-                    <button onClick={() => handleUserToggle('all')} className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold ${selectedUserIds.includes('all') ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
-                      <span>Todos</span>
-                      {selectedUserIds.includes('all') && <CheckCircle2 size={12} />}
-                    </button>
-                    {users.map(u => (
-                      <button key={u.id} onClick={() => handleUserToggle(u.id)} className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold ${selectedUserIds.includes(u.id) ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>
-                        <span>{u.name}</span>
-                        {selectedUserIds.includes(u.id) && <CheckCircle2 size={12} />}
-                      </button>
-                    ))}
                   </div>
 
-                  <div className="pt-2 border-t border-slate-50">
-                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter px-2 mb-2">Cartões</p>
-                    <button onClick={() => handleCardToggle('all')} className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold ${selectedCardIds.includes('all') ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
-                      <span>Todos</span>
-                      {selectedCardIds.includes('all') && <CheckCircle2 size={12} />}
-                    </button>
-                    <button onClick={() => handleCardToggle('direto')} className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold ${selectedCardIds.includes('direto') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'}`}>
-                      <span>Dinheiro/Direto</span>
-                      {selectedCardIds.includes('direto') && <CheckCircle2 size={12} />}
-                    </button>
-                    {cards.map(c => (
-                      <button key={c.id} onClick={() => handleCardToggle(c.id)} className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold ${selectedCardIds.includes(c.id) ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'}`}>
-                        <span>{c.name}</span>
-                        {selectedCardIds.includes(c.id) && <CheckCircle2 size={12} />}
+                  <div className="space-y-4 max-h-80 overflow-y-auto no-scrollbar py-2">
+                    <div>
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter px-2 mb-2">Usuários</p>
+                      <button onClick={() => handleUserToggle('all')} className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold ${selectedUserIds.includes('all') ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
+                        <span>Todos</span>
+                        {selectedUserIds.includes('all') && <CheckCircle2 size={12} />}
                       </button>
-                    ))}
+                      {users.map(u => (
+                        <button key={u.id} onClick={() => handleUserToggle(u.id)} className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold ${selectedUserIds.includes(u.id) ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>
+                          <span>{u.name}</span>
+                          {selectedUserIds.includes(u.id) && <CheckCircle2 size={12} />}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-50">
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter px-2 mb-2">Cartões</p>
+                      <button onClick={() => handleCardToggle('all')} className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold ${selectedCardIds.includes('all') ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
+                        <span>Todos</span>
+                        {selectedCardIds.includes('all') && <CheckCircle2 size={12} />}
+                      </button>
+                      <button onClick={() => handleCardToggle('direto')} className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold ${selectedCardIds.includes('direto') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'}`}>
+                        <span>Dinheiro/Direto</span>
+                        {selectedCardIds.includes('direto') && <CheckCircle2 size={12} />}
+                      </button>
+                      {cards.map(c => (
+                        <button key={c.id} onClick={() => handleCardToggle(c.id)} className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold ${selectedCardIds.includes(c.id) ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'}`}>
+                          <span>{c.name}</span>
+                          {selectedCardIds.includes(c.id) && <CheckCircle2 size={12} />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mt-2 pt-2 border-t border-slate-50">
+                    <button
+                      onClick={() => { setShowHiddenItems(!showHiddenItems); setIsFilterMenuOpen(false); }}
+                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[11px] font-bold ${showHiddenItems ? 'bg-orange-50 text-orange-600' : 'text-slate-500 hover:bg-slate-50'}`}
+                    >
+                      <span>Exibir Itens Ocultos</span>
+                      {showHiddenItems ? <Eye size={14} /> : <EyeOff size={14} />}
+                    </button>
                   </div>
                 </div>
+              )}
+            </div>
 
-                <div className="mt-2 pt-2 border-t border-slate-50">
-                  <button
-                    onClick={() => { setShowHiddenItems(!showHiddenItems); setIsFilterMenuOpen(false); }}
-                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[11px] font-bold ${showHiddenItems ? 'bg-orange-50 text-orange-600' : 'text-slate-500 hover:bg-slate-50'}`}
-                  >
-                    <span>Exibir Itens Ocultos</span>
-                    {showHiddenItems ? <Eye size={14} /> : <EyeOff size={14} />}
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
+
 
           <div className="relative" ref={settingsRef}>
             <button onClick={() => setIsSettingsOpen(!isSettingsOpen)} className={`p-2 rounded-full transition-all ${isSettingsOpen ? 'bg-slate-200 text-slate-700' : 'text-slate-400 hover:bg-slate-100'}`}>
@@ -734,7 +744,7 @@ const Dashboard: React.FC = () => {
             )}
           </div>
         </div>
-      </header>
+      </header >
 
       {/* Confirmation Overlay for Card Deletion */}
       {
@@ -767,16 +777,18 @@ const Dashboard: React.FC = () => {
         )
       }
 
-      {showReport && (
-        <ReportView
-          transactions={periodTransactions.filter(tx => isUserVisible(tx.userId) && (reportType === 'cards' ? tx.cardId : !tx.cardId))}
-          users={users}
-          cards={cards}
-          currentDate={currentDate}
-          type={reportType}
-          onClose={() => setShowReport(false)}
-        />
-      )}
+      {
+        showReport && (
+          <ReportView
+            transactions={periodTransactions.filter(tx => isUserVisible(tx.userId) && (reportType === 'cards' ? tx.cardId : !tx.cardId))}
+            users={users}
+            cards={cards}
+            currentDate={currentDate}
+            type={reportType}
+            onClose={() => setShowReport(false)}
+          />
+        )
+      }
 
       <main className="flex-1 overflow-y-auto px-4 py-6" ref={contentRef}>
         {isManagingUsers && (
