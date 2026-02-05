@@ -351,7 +351,19 @@ const Dashboard: React.FC = () => {
 
     return transactions.flatMap(tx => {
       const results = [];
-      const baseDate = tx.paymentStartMonth ? new Date(tx.paymentStartMonth + '-02') : new Date(tx.date);
+
+      // Fix: Parse date components manually to avoid UTC conversion shifts and preserve the exact day
+      const [txY, txM, txD] = tx.date.split('-').map(Number);
+      let baseDate;
+
+      if (tx.paymentStartMonth) {
+        const [pmY, pmM] = tx.paymentStartMonth.split('-').map(Number);
+        // Use the day from the original transaction date (txD), but year/month from paymentStartMonth
+        // Month in Date constructor is 0-indexed (pmM - 1)
+        baseDate = new Date(pmY, pmM - 1, txD);
+      } else {
+        baseDate = new Date(txY, txM - 1, txD);
+      }
 
       if (tx.isSubscription) {
         if (isMensal) {
@@ -383,8 +395,9 @@ const Dashboard: React.FC = () => {
           const instDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + i, 1);
           if (isMensal) {
             const isThisMonth = instDate.getMonth() === month && instDate.getFullYear() === year;
-            const isOverdue = instDate < currentMonthStart && !tx.isPaid && !tx.cardId;
-            if (isThisMonth || isOverdue) results.push({ ...tx, currentInstallment: i + 1, isOverdue });
+            // Strict Month Filtering: Only show if it matches the current month.
+            // "Overdue" items from past months are no longer carried over.
+            if (isThisMonth) results.push({ ...tx, currentInstallment: i + 1, isOverdue: false });
           } else {
             if (instDate >= startRange && instDate <= endRange) results.push({ ...tx, currentInstallment: i + 1 });
           }
