@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Printer, X, Download } from 'lucide-react';
 import { Transaction, User, CreditCard } from '../types';
-import { calculateTransactionValue, calculateInstallments } from '../utils/transactionUtils';
+import { calculateTransactionValue, calculateInstallments, formatDate } from '../utils/transactionUtils';
 
 
 interface ExtendedTransaction extends Transaction {
@@ -164,7 +164,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ transactions, users, car
                                         return (
                                             <tr key={`${tx.id}-${idx}`} className="border-b border-slate-50 hover:bg-slate-50 print:hover:bg-transparent">
                                                 <td className="py-2.5 pl-4 md:pl-0 font-medium text-slate-500">
-                                                    {new Date(tx.date).toLocaleDateString('pt-BR')}
+                                                    {formatDate(tx.date)}
                                                 </td>
                                                 <td className="py-2.5 font-semibold">
                                                     {tx.description}
@@ -223,7 +223,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ transactions, users, car
                                         .map((balance, idx) => (
                                             <tr key={`${balance.id}-${idx}`} className="border-b border-slate-50 hover:bg-slate-50 print:hover:bg-transparent">
                                                 <td className="py-2 pl-4 md:pl-0 font-medium text-slate-500">
-                                                    {new Date(balance.date).toLocaleDateString('pt-BR')}
+                                                    {formatDate(balance.date)}
                                                 </td>
                                                 <td className="py-2 font-semibold">
                                                     {balance.description}
@@ -305,7 +305,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ transactions, users, car
                                                     return (
                                                         <tr key={`${tx.id}-${idx}`} className="border-b border-slate-50 hover:bg-slate-50 print:hover:bg-transparent">
                                                             <td className="py-2 pl-4 md:pl-0 font-medium text-slate-500 text-xs">
-                                                                {new Date(tx.date).toLocaleDateString('pt-BR')}
+                                                                {formatDate(tx.date)}
                                                             </td>
                                                             <td className="py-2 font-semibold">
                                                                 {tx.description}
