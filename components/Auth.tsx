@@ -31,8 +31,9 @@ export const Auth = () => {
                 });
                 if (error) throw error;
             }
-        } catch (err: any) {
-            setError(err.message || 'Ocorreu um erro ao tentar autenticar.');
+        } catch (err: unknown) {
+            const errorMessage = err instanceof Error ? err.message : 'Ocorreu um erro ao tentar autenticar.';
+            setError(errorMessage);
         } finally {
             setLoading(false);
         }

@@ -157,6 +157,7 @@ const Dashboard: React.FC = () => {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [expandedUserBalances, setExpandedUserBalances] = useState<string | null>(null);
   const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
+  const [copiedTransaction, setCopiedTransaction] = useState<Transaction | null>(null);
   const [showReport, setShowReport] = useState(false);
   const [reportType, setReportType] = useState<'general' | 'cards'>('general');
 
@@ -299,6 +300,44 @@ const Dashboard: React.FC = () => {
     setNewTx(initialTxState);
   };
 
+  const copyTransaction = (tx: Transaction) => {
+    setCopiedTransaction(tx);
+  };
+
+  const pasteTransaction = () => {
+    if (!copiedTransaction) return;
+
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth();
+
+    // Parse original date to get the day
+    const [origY, origM, origD] = copiedTransaction.date.split('-').map(Number);
+
+    // Determine the safe day for the new month
+    const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const safeDay = Math.min(origD, lastDayOfMonth);
+    const newDateString = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(safeDay).padStart(2, '0')}`;
+
+    // Calculate new Payment Start Month if it exists
+    let newPaymentStartMonth = undefined;
+    if (copiedTransaction.paymentStartMonth) {
+      newPaymentStartMonth = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+    }
+
+    setNewTx({
+      ...copiedTransaction,
+      date: newDateString,
+      paymentStartMonth: newPaymentStartMonth,
+      id: undefined, // Clear ID to create new
+      isPaid: false, // Reset paid status
+    });
+
+    setEditingTransactionId(null);
+    setIsAdding(true);
+    setIsManagingUsers(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const saveUser = () => {
     if (!userForm.name) return;
     if (editingUser) {
@@ -353,59 +392,159 @@ const Dashboard: React.FC = () => {
       const results = [];
 
       // Fix: Parse date components manually to avoid UTC conversion shifts and preserve the exact day
-      const [txY, txM, txD] = tx.date.split('-').map(Number);
-      let baseDate;
+      // Handle potential ISO strings by taking only the first 10 chars
+      const cleanDate = tx.date.substring(0, 10);
+      const [txY, txM, txD] = cleanDate.split('-').map(Number);
 
-      if (tx.isSubscription) {
-        // For subscriptions, strictly honor the input Date as the start.
-        // This ensures "25/01" appears as "25/01", then repeats "25/02", etc.
-        baseDate = new Date(txY, txM - 1, txD);
+      // Universal Base Date Logic
+      // Base Date is ALWAYS the original date (for the Day anchor)
+      const baseDate = new Date(txY, txM - 1, txD);
+
+      // Start Month Logic
+      let startMonthIndex;
+      if (tx.paymentStartMonth) {
+        const [pmY, pmM] = tx.paymentStartMonth.split('-').map(Number);
+        startMonthIndex = pmY * 12 + (pmM - 1);
       } else {
-        if (tx.paymentStartMonth) {
-          const [pmY, pmM] = tx.paymentStartMonth.split('-').map(Number);
-          // Use the day from the original transaction date (txD), but year/month from paymentStartMonth
-          // Month in Date constructor is 0-indexed (pmM - 1)
-          baseDate = new Date(pmY, pmM - 1, txD);
-        } else {
-          baseDate = new Date(txY, txM - 1, txD);
-        }
+        startMonthIndex = baseDate.getFullYear() * 12 + baseDate.getMonth();
       }
 
       if (tx.isSubscription) {
         if (isMensal) {
-          const startMonthIndex = baseDate.getFullYear() * 12 + baseDate.getMonth();
           const currentMonthIndex = year * 12 + month;
 
           if (currentMonthIndex >= startMonthIndex) {
-            // For subscriptions, we show them every month after start
-            // We don't track "overdue" from previous months for dynamic subscriptions to avoid clutter
-            // unless we implement a more complex tracking system.
-            // For now, it shows the entry for the current view month.
 
-            // Fix: Update date to match the current view month, preserving the original day
-            const projectedDate = new Date(year, month, baseDate.getDate());
-            results.push({ ...tx, currentInstallment: 'Recorrente', date: projectedDate.toISOString() });
+            // Calculate how many months have passed since the recurrence START
+            const monthsSinceStart = currentMonthIndex - startMonthIndex;
+
+            // Project the Base Date forward by that amount
+            // This ensures sequence continuity:
+            // If Base=Jan, Start=Feb.
+            // Feb View (Offset 0) -> Base + 0 = Jan (25/01)
+            // Mar View (Offset 1) -> Base + 1 = Feb (25/02)
+
+            // Construct Target Date logic manualy to handle overflow
+            // Target Year/Month
+            const totalMonths = (baseDate.getFullYear() * 12 + baseDate.getMonth()) + monthsSinceStart;
+            const tYear = Math.floor(totalMonths / 12);
+            const tMonth = totalMonths % 12;
+
+            const lastDayOfTarget = new Date(tYear, tMonth + 1, 0).getDate();
+            const safeDay = Math.min(txD, lastDayOfTarget);
+
+            const dDay = String(safeDay).padStart(2, '0');
+            const dMonth = String(tMonth + 1).padStart(2, '0');
+            const displayDate = `${tYear}-${dMonth}-${dDay}`;
+
+            results.push({ ...tx, currentInstallment: 'Recorrente', date: displayDate });
           }
         } else {
-          // For range view, show all occurrences within range
-          let iterDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1);
-          while (iterDate <= endRange) {
-            if (iterDate >= startRange) {
-              results.push({ ...tx, currentInstallment: 'Recorrente', date: new Date(iterDate.getFullYear(), iterDate.getMonth(), baseDate.getDate()).toISOString() });
+
+          const endMonthIndex = endRange.getFullYear() * 12 + endRange.getMonth();
+          const viewStartMonthIndex = startRange.getFullYear() * 12 + startRange.getMonth();
+          const loopStart = Math.max(startMonthIndex, viewStartMonthIndex);
+
+          for (let idx = loopStart; idx <= endMonthIndex; idx++) {
+            const monthsSinceStart = idx - startMonthIndex;
+
+            const totalMonths = (baseDate.getFullYear() * 12 + baseDate.getMonth()) + monthsSinceStart;
+            const tYear = Math.floor(totalMonths / 12);
+            const tMonth = totalMonths % 12;
+
+            const lastDay = new Date(tYear, tMonth + 1, 0).getDate();
+            const safeDay = Math.min(txD, lastDay);
+
+            const dateObj = new Date(tYear, tMonth, safeDay);
+
+            if (dateObj >= startRange && dateObj <= endRange) {
+              const dDay = String(safeDay).padStart(2, '0');
+              const dMonth = String(tMonth + 1).padStart(2, '0');
+              const safeDateStr = `${tYear}-${dMonth}-${dDay}`;
+              results.push({
+                ...tx,
+                currentInstallment: 'Recorrente',
+                date: safeDateStr
+              });
             }
-            iterDate.setMonth(iterDate.getMonth() + 1);
           }
         }
       } else {
         for (let i = 0; i < tx.installments; i++) {
-          const instDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + i, 1);
+
+          const globalMonthIndex = startMonthIndex + i;
+
+          // Installments also start from the Base Date sequence
+          // If Base=Jan, Start=Feb.
+          // Installment 1 (Feb, i=0) -> Base + 0 = Jan.
+
+          const monthsDuration = i; // 0, 1, 2...
+          const totalMonths = (baseDate.getFullYear() * 12 + baseDate.getMonth()) + monthsDuration;
+
+          const tYear = Math.floor(totalMonths / 12);
+          const tMonth = totalMonths % 12;
+
+          const lastDay = new Date(tYear, tMonth + 1, 0).getDate();
+          const safeDay = Math.min(txD, lastDay);
+
+          const dDay = String(safeDay).padStart(2, '0');
+          const dMonth = String(tMonth + 1).padStart(2, '0');
+          const safeDateStr = `${tYear}-${dMonth}-${dDay}`;
+          const dateObj = new Date(tYear, tMonth, safeDay);
+
+          // We need to check if this installment Falls in the current View Month (globalMonthIndex)
+          // `globalMonthIndex` is the budget slot.
+          // `tYear/tMonth` is the display date slot.
+
+          const budgetYear = Math.floor(globalMonthIndex / 12);
+          const budgetMonth = globalMonthIndex % 12;
+
           if (isMensal) {
-            const isThisMonth = instDate.getMonth() === month && instDate.getFullYear() === year;
-            // Strict Month Filtering: Only show if it matches the current month.
-            // "Overdue" items from past months are no longer carried over.
-            if (isThisMonth) results.push({ ...tx, currentInstallment: i + 1, isOverdue: false });
+            // Show if Budget Slot matches View Month
+            const isThisMonth = budgetMonth === month && budgetYear === year;
+            if (isThisMonth) {
+              results.push({ ...tx, currentInstallment: i + 1, isOverdue: false, date: safeDateStr });
+            }
           } else {
-            if (instDate >= startRange && instDate <= endRange) results.push({ ...tx, currentInstallment: i + 1 });
+            // Range View: Check if BUDGET DATE implies visibility?
+            // Usually range view checks the DISPLAY DATE.
+            // But if I budget for Feb (Start), but date explains Jan (25/01).
+            // Does it appear in Jan range or Feb range?
+            // User said: "starts appearing in Feb". So it enters the Feb list.
+            // So we check `budgetYear/budgetMonth` against range?
+            // Actually, usually range view filters by the 'date' property.
+            // If valid date is 25/01, it falls in Jan range.
+            // If user is viewing "Feb 1 to Feb 28", and date is 25/01... it won't show.
+            // UNLESS we are filtering by `paymentStartMonth` logic?
+            // Line 391 `periodTransactions` iterates transactions...
+            // Logic at 441: `const isThisMonth = instMonth === month && instYear === year;`
+            // This checks the BUDGET SLOT.
+            // So yes, it will appear in Feb.
+            // But it will have `date: '2026-01-25'`.
+            // `visibleTransactionsList` sorts by `date`.
+
+            // Range view logic (lines 427-432 in ORIGINAL, or my replacement):
+            // I was checking `dateObj >= startRange`.
+            // `dateObj` is `safeDateStr` (Jan 25).
+            // If Range is Feb 1 - Feb 28. Jan 25 is NOT in range.
+            // So it won't appear in Range View if we filter by `date`.
+            // But in Monthly View it DOES appear because we filter by `isThisMonth` (Budget Slot).
+
+            // FIX: For Range view, we should probably check if the BUDGET slot is in range?
+            // The user mainly uses Monthly view.
+            // But for consistency:
+            const budgetDate = new Date(budgetYear, budgetMonth, 1);
+            const budgetEnd = new Date(budgetYear, budgetMonth + 1, 0);
+            // Check intersection? Or just check if budget month starts in range?
+            // Simple: check if budgetDate is within [startRange, endRange] (roughly)
+
+            // Actually, let's stick to Date check for Range View for now, as that's standard.
+            // The specific user request is about "Repetir para os próximos meses" which usually implies Monthly View.
+            // And specifically "starts appearing in Feb". (Monthly View).
+
+            if (dateObj >= startRange && dateObj <= endRange) {
+              results.push({ ...tx, currentInstallment: i + 1, date: safeDateStr });
+            }
           }
         }
       }
@@ -560,9 +699,18 @@ const Dashboard: React.FC = () => {
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-xl font-bold text-slate-800 tracking-tight">Finanças Pro</h1>
           <div className="flex gap-1">
-            <button onClick={() => signOut()} className="p-2 text-slate-400 hover:bg-slate-50 hover:text-red-500 rounded-full transition-colors" title="Sair"><LogOut size={20} /></button>
             <button onClick={() => { setIsManagingUsers(!isManagingUsers); cancelAdding(); }} className={`p-2 transition-colors rounded-full ${isManagingUsers ? 'bg-blue-50 text-blue-600' : 'text-slate-400'}`}><Users size={20} /></button>
             <button onClick={() => { setReportType('general'); setShowReport(true); }} className="p-2 text-slate-400 hover:bg-slate-50 rounded-full transition-colors" title="Gerar Relatório"><Printer size={20} /></button>
+            {copiedTransaction && (
+              <button
+                onClick={pasteTransaction}
+                className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-full transition-colors relative"
+                title="Colar Registro Copiado"
+              >
+                <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-emerald-500 rounded-full border border-white"></div>
+                <Copy size={20} />
+              </button>
+            )}
             <button onClick={() => { if (isAdding) cancelAdding(); else setIsAdding(true); }} className={`p-2 rounded-full shadow-lg transition-all ${isAdding ? 'bg-slate-800' : 'bg-blue-600'} text-white`}><Plus size={20} /></button>
           </div>
         </div>
@@ -857,50 +1005,94 @@ const Dashboard: React.FC = () => {
               <button onClick={cancelAdding} className="text-slate-400 hover:bg-slate-200 p-1 rounded-full"><X size={18} /></button>
             </div>
             <div className="space-y-3">
-              <input placeholder="Descrição" className="w-full text-sm p-3 rounded-xl border-none ring-1 ring-slate-200 bg-white focus:ring-2 focus:ring-blue-500 outline-none" value={newTx.description} onChange={(e) => setNewTx({ ...newTx, description: e.target.value })} />
-              <div className="flex gap-2">
-                <select
-                  className="flex-1 text-sm p-3 rounded-xl border-none ring-1 ring-slate-200 bg-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none"
-                  value={newTx.type || ''}
-                  onChange={(e) => setNewTx({ ...newTx, type: e.target.value })}
-                >
-                  <option value="">Selecione um Tipo</option>
-                  {transactionTypes.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-                <button
-                  onClick={() => {
-                    const newType = prompt("Novo Tipo de Gasto:");
-                    if (newType) hookAddTransactionType(newType);
-                  }}
-                  className="p-3 bg-white ring-1 ring-slate-200 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                  title="Adicionar Novo Tipo"
-                >
-                  <Plus size={20} />
-                </button>
-                <button
-                  onClick={() => {
-                    const typeToDelete = prompt("Digite o nome do tipo para excluir:");
-                    if (typeToDelete && transactionTypes.includes(typeToDelete)) hookDeleteTransactionType(typeToDelete);
-                    else if (typeToDelete) alert("Tipo não encontrado.");
-                  }}
-                  className="p-3 bg-white ring-1 ring-slate-200 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                  title="Excluir Tipo Existente"
-                >
-                  <Trash2 size={20} />
-                </button>
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Descrição do Gasto</label>
+                <input placeholder="Ex: Mercado, Combustível..." className="w-full text-sm p-3 rounded-xl border-none ring-1 ring-slate-200 bg-white focus:ring-2 focus:ring-blue-500 outline-none" value={newTx.description} onChange={(e) => setNewTx({ ...newTx, description: e.target.value })} />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Categoria</label>
+                <div className="flex gap-2">
+                  <select
+                    className="flex-1 text-sm p-3 rounded-xl border-none ring-1 ring-slate-200 bg-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none"
+                    value={newTx.type || ''}
+                    onChange={(e) => setNewTx({ ...newTx, type: e.target.value })}
+                  >
+                    <option value="">Selecione...</option>
+                    {transactionTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                  <button
+                    onClick={() => {
+                      const newType = prompt("Novo Tipo de Gasto:");
+                      if (newType) hookAddTransactionType(newType);
+                    }}
+                    className="p-3 bg-white ring-1 ring-slate-200 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                    title="Adicionar Novo Tipo"
+                  >
+                    <Plus size={20} />
+                  </button>
+                  <button
+                    onClick={() => {
+                      const typeToDelete = prompt("Digite o nome do tipo para excluir:");
+                      if (typeToDelete && transactionTypes.includes(typeToDelete)) hookDeleteTransactionType(typeToDelete);
+                      else if (typeToDelete) alert("Tipo não encontrado.");
+                    }}
+                    className="p-3 bg-white ring-1 ring-slate-200 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                    title="Excluir Tipo Existente"
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <input placeholder="Local" className="text-sm p-3 rounded-xl border-none ring-1 ring-slate-200 bg-white focus:ring-2 focus:ring-blue-500 outline-none" value={newTx.location} onChange={(e) => setNewTx({ ...newTx, location: e.target.value })} />
-                <input type="date" className="text-sm p-3 rounded-xl border-none ring-1 ring-slate-200 bg-white focus:ring-2 focus:ring-blue-500 outline-none" value={newTx.date} onChange={(e) => setNewTx({ ...newTx, date: e.target.value })} />
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Local / Estabelecimento</label>
+                  <input placeholder="Ex: Shell, Extra..." className="w-full text-sm p-3 rounded-xl border-none ring-1 ring-slate-200 bg-white focus:ring-2 focus:ring-blue-500 outline-none" value={newTx.location} onChange={(e) => setNewTx({ ...newTx, location: e.target.value })} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Data de Pagamento</label>
+                  <input type="date" className="w-full text-sm p-3 rounded-xl border-none ring-1 ring-slate-200 bg-white focus:ring-2 focus:ring-blue-500 outline-none" value={newTx.date} onChange={(e) => setNewTx({ ...newTx, date: e.target.value })} />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <input type="month" className="text-sm p-3 rounded-xl border-none ring-1 ring-slate-200 bg-white focus:ring-2 focus:ring-blue-500 outline-none" value={newTx.paymentStartMonth} onChange={(e) => setNewTx({ ...newTx, paymentStartMonth: e.target.value })} />
-                <input type="number" placeholder="Parcelas" className="text-sm p-3 rounded-xl border-none ring-1 ring-slate-200 bg-white focus:ring-2 focus:ring-blue-500 outline-none" value={newTx.installments || ''} onChange={(e) => setNewTx({ ...newTx, installments: Number(e.target.value) })} />
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Mês de Lançamento</label>
+                  <input type="month" className="w-full text-sm p-3 rounded-xl border-none ring-1 ring-slate-200 bg-white focus:ring-2 focus:ring-blue-500 outline-none" value={newTx.paymentStartMonth} onChange={(e) => setNewTx({ ...newTx, paymentStartMonth: e.target.value })} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Parcelas</label>
+                  <input type="number" placeholder="1x" className="w-full text-sm p-3 rounded-xl border-none ring-1 ring-slate-200 bg-white focus:ring-2 focus:ring-blue-500 outline-none" value={newTx.installments || ''} onChange={(e) => setNewTx({ ...newTx, installments: Number(e.target.value) })} />
+                </div>
               </div>
-              <input type="number" placeholder="Valor Total" className="w-full text-sm p-3 rounded-xl border-none ring-1 ring-slate-200 bg-white focus:ring-2 focus:ring-blue-500 outline-none" value={newTx.totalValue || ''} onChange={(e) => setNewTx({ ...newTx, totalValue: Number(e.target.value) })} />
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Valor da Compra</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">R$</span>
+                  <input type="number" placeholder="0,00" className="w-full text-sm p-3 pl-8 rounded-xl border-none ring-1 ring-slate-200 bg-white focus:ring-2 focus:ring-blue-500 outline-none font-bold text-slate-700" value={newTx.totalValue || ''} onChange={(e) => setNewTx({ ...newTx, totalValue: Number(e.target.value) })} />
+                </div>
+              </div>
 
               <button
-                onClick={() => setNewTx({ ...newTx, isSubscription: !newTx.isSubscription })}
+                onClick={() => {
+                  const isNowSubscription = !newTx.isSubscription;
+                  // If turning ON subscription, force paymentStartMonth to be present
+                  // Logic: User wants "month of the folder" -> This is likely 'currentDate' of the dashboard
+                  // Or from the transaction date itself?
+                  // User says: "shown in the month chosen in the Selector".
+                  // If we are in Feb (Dashboard), we want it to start in Feb.
+                  // The 'paymentStartMonth' input already defaults to current real month or what was typed.
+                  // Let's ensure it is synced with the currently viewed month if it was empty or default.
+
+                  const currentViewMonth = new Date(newTx.date || currentDate).toISOString().slice(0, 7);
+
+                  setNewTx({
+                    ...newTx,
+                    isSubscription: isNowSubscription,
+                    // If enabling, ensure we have a start month. Use the one from the date picker or current view.
+                    paymentStartMonth: isNowSubscription ? (newTx.paymentStartMonth || currentViewMonth) : newTx.paymentStartMonth
+                  });
+                }}
                 className={`w-full flex items-center justify-between gap-3 p-3 rounded-xl border-none ring-1 transition-all ${newTx.isSubscription ? 'bg-indigo-50 ring-indigo-200 text-indigo-700' : 'bg-white ring-slate-200 text-slate-500'}`}
               >
                 <div className="flex items-center gap-3">
@@ -911,13 +1103,19 @@ const Dashboard: React.FC = () => {
               </button>
 
               <div className="grid grid-cols-2 gap-3">
-                <select className="text-sm p-3 rounded-xl ring-1 ring-slate-200 bg-white focus:ring-2 focus:ring-blue-500 outline-none" value={newTx.userId} onChange={(e) => setNewTx({ ...newTx, userId: e.target.value })}>
-                  {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                </select>
-                <select className="text-sm p-3 rounded-xl ring-1 ring-slate-200 bg-white focus:ring-2 focus:ring-blue-500 outline-none" value={newTx.cardId || ''} onChange={(e) => setNewTx({ ...newTx, cardId: e.target.value || undefined })}>
-                  <option value="">Direto</option>
-                  {cards.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Quem Pagou?</label>
+                  <select className="w-full text-sm p-3 rounded-xl ring-1 ring-slate-200 bg-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none" value={newTx.userId} onChange={(e) => setNewTx({ ...newTx, userId: e.target.value })}>
+                    {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Forma de Pagamento</label>
+                  <select className="w-full text-sm p-3 rounded-xl ring-1 ring-slate-200 bg-white focus:ring-2 focus:ring-blue-500 outline-none appearance-none" value={newTx.cardId || ''} onChange={(e) => setNewTx({ ...newTx, cardId: e.target.value || undefined })}>
+                    <option value="">Dinheiro / Débito / Pix</option>
+                    {cards.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
               </div>
               <button onClick={addTransaction} className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold shadow-lg hover:bg-blue-700 transition-all active:scale-[0.98]">Salvar Lançamento</button>
             </div>
@@ -963,7 +1161,7 @@ const Dashboard: React.FC = () => {
             <div className="space-y-4">
               <h3 className="text-xs font-bold text-slate-400 uppercase px-1">Meus Lançamentos</h3>
               {visibleTransactionsList.filter(tx => !tx.cardId).length === 0 ? <EmptyState message="Nenhum item encontrado" /> : visibleTransactionsList.filter(tx => !tx.cardId).map((tx: any) => (
-                <TransactionItem key={`${tx.id}-${tx.currentInstallment}`} tx={tx} onDelete={deleteTransaction} onEdit={startEditingTransaction} onDuplicate={duplicateTransaction} onTogglePaid={togglePaid} onToggleHidden={toggleHidden} visibility={visibility} userName={users.find(u => u.id === tx.userId)?.name || ''} />
+                <TransactionItem key={`${tx.id}-${tx.currentInstallment}`} tx={tx} onDelete={deleteTransaction} onEdit={startEditingTransaction} onDuplicate={duplicateTransaction} onCopy={copyTransaction} onTogglePaid={togglePaid} onToggleHidden={toggleHidden} visibility={visibility} userName={users.find(u => u.id === tx.userId)?.name || ''} />
               ))}
             </div>
           </div>
@@ -1113,6 +1311,7 @@ const Dashboard: React.FC = () => {
                               onDelete={deleteTransaction}
                               onEdit={startEditingTransaction}
                               onDuplicate={duplicateTransaction}
+                              onCopy={copyTransaction}
                               onTogglePaid={togglePaid}
                               onToggleHidden={toggleHidden}
                               visibility={visibility}

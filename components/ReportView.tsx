@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Printer, X, Download } from 'lucide-react';
 import { Transaction, User, CreditCard } from '../types';
+import { calculateTransactionValue, calculateInstallments } from '../utils/transactionUtils';
 
 
 interface ExtendedTransaction extends Transaction {
@@ -22,16 +23,14 @@ export const ReportView: React.FC<ReportViewProps> = ({ transactions, users, car
     const stats = useMemo(() => {
         // General Stats (Total Spending, Inputs, Result)
         const totalSpending = transactions.reduce((acc, tx) => {
-            const installments = (tx.installments && tx.installments > 0) ? tx.installments : 1;
-            const val = tx.isSubscription ? tx.totalValue : (tx.totalValue / installments);
+            const val = calculateTransactionValue(tx);
             return acc + val;
         }, 0);
 
         const hiddenSpending = transactions
             .filter(tx => tx.isHidden)
             .reduce((acc, tx) => {
-                const installments = (tx.installments && tx.installments > 0) ? tx.installments : 1;
-                const val = tx.isSubscription ? tx.totalValue : (tx.totalValue / installments);
+                const val = calculateTransactionValue(tx);
                 return acc + val;
             }, 0);
 
@@ -57,8 +56,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ transactions, users, car
         const cardGroups = type === 'cards' ? cards.map(card => {
             const cardTxs = transactions.filter(tx => tx.cardId === card.id);
             const total = cardTxs.reduce((acc, tx) => {
-                const installments = (tx.installments && tx.installments > 0) ? tx.installments : 1;
-                return acc + (tx.isSubscription ? tx.totalValue : (tx.totalValue / installments));
+                return acc + calculateTransactionValue(tx);
             }, 0);
 
             const visible = cardTxs.filter(tx => !tx.isHidden).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -158,8 +156,8 @@ export const ReportView: React.FC<ReportViewProps> = ({ transactions, users, car
                                 </thead>
                                 <tbody className="text-sm text-slate-700">
                                     {stats.visibleTransactions.map((tx, idx) => {
-                                        const installments = (tx.installments && tx.installments > 0) ? tx.installments : 1;
-                                        const value = tx.isSubscription ? tx.totalValue : (tx.totalValue / installments);
+                                        const installments = calculateInstallments(tx);
+                                        const value = calculateTransactionValue(tx);
                                         const user = users.find(u => u.id === tx.userId);
                                         const card = cards.find(c => c.id === tx.cardId);
 
@@ -300,8 +298,8 @@ export const ReportView: React.FC<ReportViewProps> = ({ transactions, users, car
                                                 </tr>
                                             ) : (
                                                 group.visible.map((tx, idx) => {
-                                                    const installments = (tx.installments && tx.installments > 0) ? tx.installments : 1;
-                                                    const value = tx.isSubscription ? tx.totalValue : (tx.totalValue / installments);
+                                                    const installments = calculateInstallments(tx);
+                                                    const value = calculateTransactionValue(tx);
                                                     const user = users.find(u => u.id === tx.userId);
 
                                                     return (

@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { Transaction } from '../types';
+import { calculateTransactionValue } from '../utils/transactionUtils';
 
 interface ExpensesPieChartProps {
     transactions: Transaction[];
@@ -16,12 +17,11 @@ export const ExpensesPieChart: React.FC<ExpensesPieChartProps> = ({ transactions
         const grouped = transactions.reduce((acc: Record<string, number>, tx: Transaction) => {
             const type = tx.type || 'Outros';
 
-            const installments = (tx.installments && tx.installments > 0) ? tx.installments : 1;
-            const rawValue = tx.isSubscription ? tx.totalValue : (tx.totalValue / installments);
-            const value = Number.isFinite(rawValue) ? rawValue : 0;
+            const value = calculateTransactionValue(tx);
+            const finalValue = Number.isFinite(value) ? value : 0;
 
             const currentTotal = acc[type] ?? 0;
-            acc[type] = currentTotal + value;
+            acc[type] = currentTotal + finalValue;
 
             return acc;
         }, {} as Record<string, number>);

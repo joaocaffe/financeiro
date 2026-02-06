@@ -1,6 +1,7 @@
 import React from 'react';
-import { Copy, Pencil, Trash2, Eye, EyeOff } from 'lucide-react';
+import { Copy, Pencil, Trash2, Eye, EyeOff, Clipboard } from 'lucide-react';
 import { Transaction, ColumnVisibility } from '../types';
+import { calculateTransactionValue, calculateInstallments, formatDate } from '../utils/transactionUtils';
 
 interface ExtendedTransaction extends Transaction {
     currentInstallment?: number;
@@ -11,6 +12,7 @@ interface TransactionItemProps {
     onDelete: (id: string) => void;
     onEdit: (tx: Transaction) => void;
     onDuplicate: (tx: Transaction) => void;
+    onCopy: (tx: Transaction) => void;
     onTogglePaid: (id: string) => void;
     onToggleHidden: (id: string) => void;
     visibility: ColumnVisibility;
@@ -22,13 +24,14 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
     onDelete,
     onEdit,
     onDuplicate,
+    onCopy,
     onTogglePaid,
     onToggleHidden,
     visibility,
     userName
 }) => {
-    const installments = tx.installments && tx.installments > 0 ? tx.installments : 1;
-    const installmentValue = tx.isSubscription ? tx.totalValue : tx.totalValue / installments;
+    const installments = calculateInstallments(tx);
+    const installmentValue = calculateTransactionValue(tx);
 
     return (
         <div className={`flex items-center gap-3 p-4 rounded-2xl border transition-all ${tx.isHidden ? 'bg-slate-50 border-dashed border-slate-300 opacity-50' : tx.isPaid ? 'bg-white opacity-60 grayscale shadow-none' : 'bg-white shadow-sm border-slate-50'}`}>
@@ -39,7 +42,7 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
                         <div className="flex gap-2 items-center text-[10px] text-slate-400 truncate font-medium">
                             {visibility.location && <span>{tx.location}</span>}
                             {visibility.location && visibility.date && <span>•</span>}
-                            {visibility.date && <span>{new Date(tx.date).toLocaleDateString('pt-BR')}</span>}
+                            {visibility.date && <span>{formatDate(tx.date)}</span>}
                         </div>
                     </div>
                     <div className="text-right flex-shrink-0">
@@ -51,6 +54,7 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
                     {visibility.user && <span className="text-[8px] px-2 py-0.5 rounded-lg font-black bg-slate-100 text-slate-500 uppercase tracking-widest">{userName}</span>}
                     <div className="flex gap-2.5">
                         <button onClick={(e) => { e.stopPropagation(); onToggleHidden(tx.id); }} className={`transition-colors ${tx.isHidden ? 'text-orange-500' : 'text-slate-300 hover:text-orange-400'}`} title="Ocultar Item">{tx.isHidden ? <Eye size={14} /> : <EyeOff size={14} />}</button>
+                        <button onClick={(e) => { e.stopPropagation(); onCopy(tx); }} className="text-slate-300 hover:text-indigo-500 transition-colors" title="Copiar"><Clipboard size={14} /></button>
                         <button onClick={(e) => { e.stopPropagation(); onDuplicate(tx); }} className="text-slate-300 hover:text-emerald-500 transition-colors" title="Duplicar"><Copy size={14} /></button>
                         <button onClick={(e) => { e.stopPropagation(); onEdit(tx); }} className="text-slate-300 hover:text-blue-400 transition-colors" title="Editar"><Pencil size={14} /></button>
                         <button onClick={(e) => { e.stopPropagation(); onDelete(tx.id); }} className="text-slate-300 hover:text-red-400 transition-colors" title="Excluir"><Trash2 size={14} /></button>
