@@ -26,9 +26,15 @@ export const ExpensesPieChart: React.FC<ExpensesPieChartProps> = ({ transactions
             return acc;
         }, {} as Record<string, number>);
 
+        const totalValue = Object.values(grouped).reduce((sum, val) => sum + val, 0);
+
         return Object.entries(grouped)
-            .map(([name, value]: [string, number]) => ({ name, value }))
-            .filter((item: { name: string; value: number }) => item.value > 0)
+            .map(([name, value]: [string, number]) => ({
+                name,
+                value,
+                percentage: totalValue > 0 ? (value / totalValue) * 100 : 0
+            }))
+            .filter((item) => item.value > 0)
             .sort((a, b) => b.value - a.value);
     }, [transactions]);
 
@@ -36,14 +42,14 @@ export const ExpensesPieChart: React.FC<ExpensesPieChartProps> = ({ transactions
         return (
             <div className="flex flex-col items-center justify-center p-8 bg-slate-50 rounded-3xl border border-slate-100 h-64 text-slate-400">
                 <p className="text-xs font-bold uppercase tracking-widest text-center">Gráfico Sem dados</p>
-                <p className="text-[10px] mt-1 text-slate-300">Nenhum gasto de cartão neste período</p>
+                <p className="text-[10px] mt-1 text-slate-300">Nenhum gasto neste período</p>
             </div>
         );
     }
 
     return (
         <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-4 h-96">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 text-center">Distribuição por Categoria</h3>
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 text-center">DISTRIBUIÇÃO POR CATEGORIA</h3>
             <ResponsiveContainer width="100%" height="90%">
                 <PieChart>
                     <Pie
@@ -61,7 +67,10 @@ export const ExpensesPieChart: React.FC<ExpensesPieChartProps> = ({ transactions
                         ))}
                     </Pie>
                     <Tooltip
-                        formatter={(value: number) => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                        formatter={(value: number, name: string, props: any) => [
+                            `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (${props.payload.percentage.toFixed(1)}%)`,
+                            name
+                        ]}
                         contentStyle={{ backgroundColor: '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                         itemStyle={{ color: '#475569', fontSize: '12px', fontWeight: 'bold' }}
                     />
@@ -69,7 +78,11 @@ export const ExpensesPieChart: React.FC<ExpensesPieChartProps> = ({ transactions
                         verticalAlign="bottom"
                         height={36}
                         iconType="circle"
-                        formatter={(value) => <span className="text-[10px] font-bold text-slate-600">{value}</span>}
+                        formatter={(value, entry: any) => (
+                            <span className="text-[10px] font-bold text-slate-600 ml-1">
+                                {value} <span className="text-slate-400 font-normal">({entry.payload.percentage.toFixed(0)}%)</span>
+                            </span>
+                        )}
                     />
                 </PieChart>
             </ResponsiveContainer>

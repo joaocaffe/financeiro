@@ -160,6 +160,7 @@ const Dashboard: React.FC = () => {
   const [copiedTransaction, setCopiedTransaction] = useState<Transaction | null>(null);
   const [showReport, setShowReport] = useState(false);
   const [reportType, setReportType] = useState<'general' | 'cards'>('general');
+  const [chartType, setChartType] = useState<'payments' | 'cards'>('cards');
 
 
   useEffect(() => {
@@ -190,7 +191,8 @@ const Dashboard: React.FC = () => {
     isPaid: false,
     isHidden: false,
     isSubscription: false,
-    type: ''
+    type: '',
+    installmentsPaid: undefined
   };
 
   const initialCardState: Partial<CreditCard> = {
@@ -470,7 +472,10 @@ const Dashboard: React.FC = () => {
           }
         }
       } else {
-        for (let i = 0; i < tx.installments; i++) {
+        const paidCount = tx.installmentsPaid || 0;
+        const remainingInstallments = tx.installments - paidCount;
+
+        for (let i = 0; i < remainingInstallments; i++) {
 
           const globalMonthIndex = startMonthIndex + i;
 
@@ -503,7 +508,7 @@ const Dashboard: React.FC = () => {
             // Show if Budget Slot matches View Month
             const isThisMonth = budgetMonth === month && budgetYear === year;
             if (isThisMonth) {
-              results.push({ ...tx, currentInstallment: i + 1, isOverdue: false, date: safeDateStr });
+              results.push({ ...tx, currentInstallment: i + 1 + paidCount, isOverdue: false, date: safeDateStr });
             }
           } else {
             // Range View: Check if BUDGET DATE implies visibility?
@@ -543,7 +548,7 @@ const Dashboard: React.FC = () => {
             // And specifically "starts appearing in Feb". (Monthly View).
 
             if (dateObj >= startRange && dateObj <= endRange) {
-              results.push({ ...tx, currentInstallment: i + 1, date: safeDateStr });
+              results.push({ ...tx, currentInstallment: i + 1 + paidCount, date: safeDateStr });
             }
           }
         }
@@ -1061,7 +1066,25 @@ const Dashboard: React.FC = () => {
                 </div>
                 <div className="space-y-1">
                   <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Parcelas</label>
-                  <input type="number" placeholder="1x" className="w-full text-sm p-3 rounded-xl border-none ring-1 ring-slate-200 bg-white focus:ring-2 focus:ring-blue-500 outline-none" value={newTx.installments || ''} onChange={(e) => setNewTx({ ...newTx, installments: Number(e.target.value) })} />
+                  <div className="flex gap-2">
+                    <input type="number" placeholder="1x" className="w-full text-sm p-3 rounded-xl border-none ring-1 ring-slate-200 bg-white focus:ring-2 focus:ring-blue-500 outline-none" value={newTx.installments || ''} onChange={(e) => setNewTx({ ...newTx, installments: Number(e.target.value) })} />
+                    {(!newTx.isSubscription && (newTx.installments || 0) > 1) && (
+                      <input
+                        type="number"
+                        placeholder="Pagas"
+                        title="Quanto já foi pago (entrada de dívida antiga)"
+                        className="w-20 text-sm p-3 rounded-xl border-none ring-1 ring-slate-200 bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-slate-600"
+                        value={newTx.installmentsPaid || ''}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          // Limit so paid < total
+                          const max = (newTx.installments || 1) - 1;
+                          const safeVal = Math.min(Math.max(0, val), max);
+                          setNewTx({ ...newTx, installmentsPaid: safeVal > 0 ? safeVal : undefined })
+                        }}
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1369,6 +1392,15 @@ const Dashboard: React.FC = () => {
                     <p className="text-lg font-black text-indigo-600 leading-none">R$ {dashStats.saldoTotalCartao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                   </div>
                 </div>
+                <div className="col-span-2 bg-slate-100 rounded-2xl p-4 border border-slate-200 flex items-center justify-between relative overflow-hidden group">
+                  <div className="absolute right-0 top-0 p-3 opacity-10 group-hover:scale-110 transition-transform">
+                    <DollarSign size={64} className="text-slate-600" />
+                  </div>
+                  <div className="relative z-10">
+                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 flex items-center gap-1"><DollarSign size={10} /> Total Geral</p>
+                    <p className="text-2xl font-black text-slate-700 leading-none">R$ {(dashStats.saldoTotalGasto + dashStats.saldoTotalCartao).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                  </div>
+                </div>
               </div>
 
               {/* SEÇÃO DE PROJEÇÃO DE FATURAS */}
@@ -1486,13 +1518,32 @@ const Dashboard: React.FC = () => {
               )}
             </div>
 
-            {/* GRÁFICO DE PIZZA - GASTOS POR CATEGORIA (CARTÕES) */}
+            {/* GRÁFICO DE PIZZA - GASTOS POR CATEGORIA */}
             <div className="mt-6">
+              <div className="flex justify-center mb-4">
+                <div className="bg-slate-100 p-1 rounded-xl flex">
+                  <button
+                    onClick={() => setChartType('cards')}
+                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${chartType === 'cards' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                  >
+                    Cartões
+                  </button>
+                  <button
+                    onClick={() => setChartType('payments')}
+                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${chartType === 'payments' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                  >
+                    Pagamentos
+                  </button>
+                </div>
+              </div>
               <ExpensesPieChart
                 transactions={periodTransactions.filter(tx =>
-                  tx.cardId &&
                   isUserVisible(tx.userId) &&
-                  (includeHiddenInStats || !tx.isHidden)
+                  (includeHiddenInStats || !tx.isHidden) &&
+                  (chartType === 'cards'
+                    ? (tx.cardId && isCardVisible(tx.cardId))
+                    : !tx.cardId
+                  )
                 )}
               />
             </div>

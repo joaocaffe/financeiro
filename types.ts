@@ -36,6 +36,7 @@ export interface Transaction {
   isPaid: boolean;
   isHidden: boolean;
   isSubscription?: boolean; // If true, totalValue is used for EACH month. If false, totalValue / installments.
+  installmentsPaid?: number;
 }
 
 export type AppTab = 'pagamentos' | 'cartoes' | 'resumo';
