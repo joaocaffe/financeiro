@@ -18,6 +18,7 @@ const mapTransactionFromDB = (tx: any): Transaction => ({
     isPaid: tx.is_paid,
     isHidden: tx.is_hidden,
     isSubscription: tx.is_subscription,
+    installmentsPaid: tx.installments_paid,
     purchaseDate: tx.purchase_date,
 });
 
@@ -35,6 +36,7 @@ const mapTransactionToDB = (tx: Partial<Transaction>, ownerId: string) => ({
     is_paid: tx.isPaid,
     is_hidden: tx.isHidden,
     is_subscription: tx.isSubscription,
+    installments_paid: tx.installmentsPaid,
     purchase_date: tx.purchaseDate,
 });
 
