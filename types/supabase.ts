@@ -64,6 +64,7 @@ export interface Database {
                     is_hidden: boolean | null
                     name: string
                     owner_id: string
+                    position: number
                 }
                 Insert: {
                     brand: string
@@ -73,6 +74,7 @@ export interface Database {
                     is_hidden?: boolean | null
                     name: string
                     owner_id: string
+                    position?: number
                 }
                 Update: {
                     brand?: string
@@ -82,6 +84,7 @@ export interface Database {
                     is_hidden?: boolean | null
                     name?: string
                     owner_id?: string
+                    position?: number
                 }
                 Relationships: [
                     {

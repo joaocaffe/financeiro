@@ -20,6 +20,7 @@ export interface CreditCard {
   brand: string; // Ex: Visa, Master, Elo, etc.
   dueDay: number;
   isHidden?: boolean;
+  position?: number;
 }
 
 export interface Transaction {

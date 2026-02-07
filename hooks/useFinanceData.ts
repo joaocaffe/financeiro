@@ -58,7 +58,8 @@ const mapCardFromDB = (c: any): CreditCard => ({
     name: c.name,
     brand: c.brand,
     dueDay: c.due_day,
-    isHidden: c.is_hidden
+    isHidden: c.is_hidden,
+    position: c.position
 });
 
 export const useFinanceData = () => {
@@ -75,7 +76,7 @@ export const useFinanceData = () => {
 
         try {
             const { data: usersData } = await supabase.from('finance_users').select('*').order('created_at', { ascending: true });
-            const { data: cardsData } = await supabase.from('credit_cards').select('*').order('created_at', { ascending: true });
+            const { data: cardsData } = await supabase.from('credit_cards').select('*').order('position', { ascending: true, nullsFirst: false }).order('created_at', { ascending: true });
             const { data: txData } = await supabase.from('transactions').select('*').order('date', { ascending: false });
             const { data: balancesData } = await supabase.from('balances').select('*');
             const { data: typesData } = await supabase.from('transaction_types').select('*');
@@ -164,7 +165,8 @@ export const useFinanceData = () => {
             name: card.name,
             brand: card.brand,
             due_day: card.dueDay,
-            is_hidden: card.isHidden
+            is_hidden: card.isHidden,
+            position: card.position ?? (cards.length > 0 ? Math.max(...cards.map(c => c.position || 0)) + 1 : 0)
         }).select().single();
 
         if (data) {
@@ -197,22 +199,39 @@ export const useFinanceData = () => {
         }
     };
 
-    const moveCard = (id: string, direction: 'up' | 'down') => {
-        // Since we order by created_at or just array order locally, persisting 'order' requires a new column or just local state.
-        // For now, keep generic array reordering but it won't persist across refreshes without an 'order' column.
-        setCards(prev => {
-            const index = prev.findIndex(c => c.id === id);
-            if (index === -1) return prev;
-            const newCards = [...prev];
-            if (direction === 'up') {
-                if (index === 0) return prev;
-                [newCards[index - 1], newCards[index]] = [newCards[index], newCards[index - 1]];
-            } else {
-                if (index === prev.length - 1) return prev;
-                [newCards[index + 1], newCards[index]] = [newCards[index], newCards[index + 1]];
-            }
-            return newCards;
-        });
+    const moveCard = async (id: string, direction: 'up' | 'down') => {
+        const index = cards.findIndex(c => c.id === id);
+        if (index === -1) return;
+
+        const newCards = [...cards];
+        let targetIndex = -1;
+
+        if (direction === 'up') {
+            if (index === 0) return;
+            targetIndex = index - 1;
+        } else {
+            if (index === cards.length - 1) return;
+            targetIndex = index + 1;
+        }
+
+        // Swap locally
+        [newCards[index], newCards[targetIndex]] = [newCards[targetIndex], newCards[index]];
+
+        // Update positions based on new index
+        const updatedCards = newCards.map((c, i) => ({ ...c, position: i }));
+        setCards(updatedCards);
+
+        // Persist to Supabase
+        // We only need to update the two swapped cards to minimize requests, 
+        // OR update all if we want to ensure full consistency. 
+        // Swapping positions is safer.
+        const cardA = updatedCards[index];
+        const cardB = updatedCards[targetIndex];
+
+        await Promise.all([
+            supabase.from('credit_cards').update({ position: cardA.position }).eq('id', cardA.id),
+            supabase.from('credit_cards').update({ position: cardB.position }).eq('id', cardB.id)
+        ]);
     };
 
     // --- Users ---
