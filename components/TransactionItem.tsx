@@ -42,7 +42,11 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
                         <div className="flex gap-2 items-center text-[10px] text-slate-400 truncate font-medium">
                             {visibility.location && <span>{tx.location}</span>}
                             {visibility.location && visibility.date && <span>•</span>}
-                            {visibility.date && <span>{formatDate(tx.date)}</span>}
+                            {visibility.date && (
+                                <span className={tx.purchaseDate ? "text-blue-600 font-bold" : ""}>
+                                    {formatDate(tx.purchaseDate || tx.date)}
+                                </span>
+                            )}
                         </div>
                     </div>
                     <div className="text-right flex-shrink-0">

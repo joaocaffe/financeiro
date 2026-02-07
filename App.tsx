@@ -192,7 +192,8 @@ const Dashboard: React.FC = () => {
     isHidden: false,
     isSubscription: false,
     type: '',
-    installmentsPaid: undefined
+    installmentsPaid: undefined,
+    purchaseDate: undefined
   };
 
   const initialCardState: Partial<CreditCard> = {
@@ -1055,8 +1056,24 @@ const Dashboard: React.FC = () => {
                   <input placeholder="Ex: Shell, Extra..." className="w-full text-sm p-3 rounded-xl border-none ring-1 ring-slate-200 bg-white focus:ring-2 focus:ring-blue-500 outline-none" value={newTx.location} onChange={(e) => setNewTx({ ...newTx, location: e.target.value })} />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Data de Pagamento</label>
+                  <div className="flex justify-between items-center">
+                    <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Data de Referência</label>
+                    {newTx.cardId && (
+                      <button
+                        onClick={() => setNewTx({ ...newTx, purchaseDate: newTx.purchaseDate ? undefined : newTx.date })}
+                        className="text-[8px] font-bold text-blue-500 hover:text-blue-700 uppercase"
+                      >
+                        {newTx.purchaseDate ? '- Remover Data Compra' : '+ Data Compra'}
+                      </button>
+                    )}
+                  </div>
                   <input type="date" className="w-full text-sm p-3 rounded-xl border-none ring-1 ring-slate-200 bg-white focus:ring-2 focus:ring-blue-500 outline-none" value={newTx.date} onChange={(e) => setNewTx({ ...newTx, date: e.target.value })} />
+                  {newTx.cardId && newTx.purchaseDate !== undefined && (
+                    <div className="mt-2 animate-in slide-in-from-top-2 fade-in">
+                      <label className="text-[9px] font-bold text-blue-400 uppercase ml-1 mb-1 block">Data Real da Compra</label>
+                      <input type="date" className="w-full text-sm p-3 rounded-xl border-none ring-1 ring-blue-200 bg-blue-50 focus:ring-2 focus:ring-blue-500 outline-none" value={newTx.purchaseDate} onChange={(e) => setNewTx({ ...newTx, purchaseDate: e.target.value })} />
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">

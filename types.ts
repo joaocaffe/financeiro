@@ -27,7 +27,8 @@ export interface Transaction {
   description: string;
   location: string;
   type?: string; // e.g. 'Alimentação', 'Transporte', etc.
-  date: string; // Purchase date (ISO format)
+  date: string; // Purchase date (ISO format) or Accounting date if no separate purchase date
+  purchaseDate?: string; // Optional: Explicit purchase date if different from accounting date
   paymentStartMonth?: string; // Format YYYY-MM
   totalValue: number;
   installments: number; // 1 for single payment

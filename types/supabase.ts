@@ -166,6 +166,7 @@ export interface Database {
                     location: string | null
                     owner_id: string
                     payment_start_month: string | null
+                    purchase_date: string | null
                     total_value: number
                     type: string | null
                 }
@@ -178,6 +179,7 @@ export interface Database {
                     location?: string | null
                     type?: string | null
                     payment_start_month?: string | null
+                    purchase_date?: string | null
                     total_value: number
                     installments?: number | null
                     owner_id: string
@@ -195,6 +197,7 @@ export interface Database {
                     location?: string | null
                     type?: string | null
                     payment_start_month?: string | null
+                    purchase_date?: string | null
                     total_value?: number
                     installments?: number | null
                     owner_id?: string
