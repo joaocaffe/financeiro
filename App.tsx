@@ -15,6 +15,7 @@ import {
   Circle,
   UserPlus,
   TrendingUp,
+  Calculator,
   TrendingDown,
   DollarSign,
   LayoutDashboard,
@@ -94,6 +95,7 @@ import { useFinanceData } from './hooks/useFinanceData';
 import { useFilters } from './hooks/useFilters';
 import { ExpensesPieChart } from './components/ExpensesPieChart';
 import { ReportView } from './components/ReportView';
+import { CalculatorModal } from './components/CalculatorModal';
 
 
 
@@ -184,6 +186,7 @@ const Dashboard: React.FC = () => {
   const [showReport, setShowReport] = useState(false);
   const [reportType, setReportType] = useState<'general' | 'cards'>('general');
   const [chartType, setChartType] = useState<'payments' | 'cards'>('cards');
+  const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
 
 
   useEffect(() => {
@@ -1142,7 +1145,15 @@ const Dashboard: React.FC = () => {
               </div>
 
               <div className="space-y-1">
-                <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Valor da Compra</label>
+                <label className="text-[9px] font-bold text-slate-400 uppercase ml-1 flex justify-between items-center">
+                  <span>Valor da Compra</span>
+                  <button
+                    onClick={() => setIsCalculatorOpen(true)}
+                    className="text-[9px] font-bold text-blue-500 hover:text-blue-700 uppercase flex items-center gap-1 bg-blue-50 px-2 py-0.5 rounded-md transition-colors"
+                  >
+                    <Calculator size={10} /> Calculadora
+                  </button>
+                </label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">R$</span>
                   <input type="number" placeholder="0,00" className="w-full text-sm p-3 pl-8 rounded-xl border-none ring-1 ring-slate-200 bg-white focus:ring-2 focus:ring-blue-500 outline-none font-bold text-slate-700" value={newTx.totalValue || ''} onChange={(e) => setNewTx({ ...newTx, totalValue: Number(e.target.value) })} />
@@ -1610,6 +1621,15 @@ const Dashboard: React.FC = () => {
         <TabButton active={activeTab === 'cartoes'} onClick={() => setActiveTab('cartoes')} icon={<CardIcon size={24} />} label="Cartões" />
         <TabButton active={activeTab === 'resumo'} onClick={() => setActiveTab('resumo')} icon={<PieChart size={24} />} label="Resumo" />
       </nav>
+      <CalculatorModal
+        isOpen={isCalculatorOpen}
+        onClose={() => setIsCalculatorOpen(false)}
+        onConfirm={(total) => {
+          setNewTx({ ...newTx, totalValue: total });
+          setIsCalculatorOpen(false);
+        }}
+        initialValue={newTx.totalValue}
+      />
     </div >
   );
 };
