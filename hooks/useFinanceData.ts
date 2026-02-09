@@ -44,6 +44,7 @@ const mapUserFromDB = (u: any, balances: any[]): User => ({
     id: u.id,
     name: u.name,
     isHidden: u.is_hidden,
+    color: u.color,
     balances: balances.filter(b => b.app_user_id === u.id).map(b => ({
         id: b.id,
         amount: Number(b.amount),
@@ -244,7 +245,8 @@ export const useFinanceData = () => {
         const { data, error } = await supabase.from('finance_users').insert({
             owner_id: authUser.id,
             name: user.name,
-            is_hidden: user.isHidden
+            is_hidden: user.isHidden,
+            color: user.color
         }).select().single();
 
         if (data) {
@@ -259,7 +261,8 @@ export const useFinanceData = () => {
         setUsers(prev => prev.map(u => u.id === id ? updated : u));
         await supabase.from('finance_users').update({
             name: updated.name,
-            is_hidden: updated.isHidden
+            is_hidden: updated.isHidden,
+            color: updated.color
         }).eq('id', id);
     };
 

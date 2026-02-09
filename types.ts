@@ -12,6 +12,7 @@ export interface User {
   name: string;
   balances: BalanceRecord[];
   isHidden?: boolean;
+  color?: string;
 }
 
 export interface CreditCard {

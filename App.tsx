@@ -59,6 +59,29 @@ import {
 import { AppTab, Transaction, User, CreditCard, ColumnVisibility, BalanceRecord } from './types';
 import { INITIAL_USERS, INITIAL_CARDS, MONTHS } from './constants';
 import { TabButton } from './components/TabButton';
+
+const USER_COLORS = [
+  '#f87171', // red-400 (soft)
+  '#fb923c', // orange-400
+  '#fbbf24', // amber-400
+  '#facc15', // yellow-400
+  '#a3e635', // lime-400
+  '#4ade80', // green-400
+  '#34d399', // emerald-400
+  '#2dd4bf', // teal-400
+  '#22d3ee', // cyan-400
+  '#38bdf8', // sky-400
+  '#60a5fa', // blue-400
+  '#818cf8', // indigo-400
+  '#a78bfa', // violet-400
+  '#c084fc', // purple-400
+  '#e879f9', // fuchsia-400
+  '#f472b6', // pink-400
+  '#cbd5e1', // slate-300
+  '#94a3b8', // slate-400
+  '#64748b', // slate-500
+  '#475569'  // slate-600
+];
 import { EmptyState } from './components/EmptyState';
 import { DashboardCard } from './components/DashboardCard';
 import { TransactionItem } from './components/TransactionItem';
@@ -205,7 +228,7 @@ const Dashboard: React.FC = () => {
 
   const [newTx, setNewTx] = useState<Partial<Transaction>>(initialTxState);
   const [newCard, setNewCard] = useState<Partial<CreditCard>>(initialCardState);
-  const [userForm, setUserForm] = useState({ name: '' });
+  const [userForm, setUserForm] = useState<{ name: string; color?: string }>({ name: '' });
   const [balanceForm, setBalanceForm] = useState({ amount: 0, date: new Date().toISOString().split('T')[0], referenceMonth: new Date().toISOString().slice(0, 7), description: '' });
 
 
@@ -344,10 +367,10 @@ const Dashboard: React.FC = () => {
   const saveUser = () => {
     if (!userForm.name) return;
     if (editingUser) {
-      hookUpdateUser(editingUser.id, { ...editingUser, name: userForm.name });
+      hookUpdateUser(editingUser.id, { ...editingUser, name: userForm.name, color: userForm.color });
       setEditingUser(null);
     } else {
-      const user: User = { id: Math.random().toString(36).substr(2, 9), name: userForm.name, balances: [] };
+      const user: User = { id: Math.random().toString(36).substr(2, 9), name: userForm.name, color: userForm.color, balances: [] };
       hookAddUser(user);
     }
     setUserForm({ name: '' });
@@ -952,7 +975,20 @@ const Dashboard: React.FC = () => {
               {editingUser && <button onClick={() => { setEditingUser(null); setUserForm({ name: '' }); }} className="text-blue-400 hover:bg-blue-100 p-1 rounded-full"><X size={16} /></button>}
             </div>
             <div className="space-y-3 mb-6 pb-6 border-b border-blue-100">
-              <input placeholder="Nome do Usuário" className="w-full text-sm p-3 rounded-xl ring-1 ring-blue-200 outline-none focus:ring-2 focus:ring-blue-500 bg-white" value={userForm.name} onChange={(e) => setUserForm({ name: e.target.value })} />
+              <input placeholder="Nome do Usuário" className="w-full text-sm p-3 rounded-xl ring-1 ring-blue-200 outline-none focus:ring-2 focus:ring-blue-500 bg-white" value={userForm.name} onChange={(e) => setUserForm({ ...userForm, name: e.target.value })} />
+
+              <div className="flex gap-2 flex-wrap justify-between p-2 bg-white rounded-xl ring-1 ring-blue-100">
+                {USER_COLORS.map(color => (
+                  <button
+                    key={color}
+                    onClick={() => setUserForm({ ...userForm, color: userForm.color === color ? undefined : color })}
+                    className={`w-6 h-6 rounded-full transition-transform ${userForm.color === color ? 'ring-2 ring-offset-1 ring-slate-400 scale-110' : 'hover:scale-110'}`}
+                    style={{ backgroundColor: color }}
+                    title={color}
+                  />
+                ))}
+              </div>
+
               <button onClick={saveUser} className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold shadow-md active:bg-blue-700 transition-colors">{editingUser ? 'Salvar Alteração' : 'Adicionar Usuário'}</button>
             </div>
             <div className="space-y-3">
@@ -960,12 +996,12 @@ const Dashboard: React.FC = () => {
                 <div key={user.id} className="bg-white/80 rounded-2xl border border-blue-50 overflow-hidden">
                   <div className="p-3 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold">{user.name.charAt(0)}</div>
+                      <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold" style={{ backgroundColor: user.color, color: user.color ? '#fff' : undefined }}>{user.name.charAt(0)}</div>
                       <span className="text-xs font-bold text-slate-700">{user.name}</span>
                     </div>
                     <div className="flex gap-1">
                       <button onClick={() => setExpandedUserBalances(expandedUserBalances === user.id ? null : user.id)} className={`p-1.5 rounded-lg transition-colors ${expandedUserBalances === user.id ? 'bg-blue-100 text-blue-600' : 'text-blue-400 hover:bg-blue-50'}`} title="Histórico/Saldos"><History size={16} /></button>
-                      <button onClick={() => { setEditingUser(user); setUserForm({ name: user.name }); }} className="p-1.5 text-blue-400 hover:bg-blue-50 rounded-lg transition-colors" title="Editar Usuário"><Pencil size={16} /></button>
+                      <button onClick={() => { setEditingUser(user); setUserForm({ name: user.name, color: user.color }); }} className="p-1.5 text-blue-400 hover:bg-blue-50 rounded-lg transition-colors" title="Editar Usuário"><Pencil size={16} /></button>
                       <button onClick={() => deleteUser(user.id)} className="p-1.5 text-slate-300 hover:text-red-400 hover:bg-red-50 rounded-lg transition-colors" title="Excluir Usuário"><Trash2 size={16} /></button>
                     </div>
                   </div>
@@ -1201,7 +1237,7 @@ const Dashboard: React.FC = () => {
             <div className="space-y-4">
               <h3 className="text-xs font-bold text-slate-400 uppercase px-1">Meus Lançamentos</h3>
               {visibleTransactionsList.filter(tx => !tx.cardId).length === 0 ? <EmptyState message="Nenhum item encontrado" /> : visibleTransactionsList.filter(tx => !tx.cardId).map((tx: any) => (
-                <TransactionItem key={`${tx.id}-${tx.currentInstallment}`} tx={tx} onDelete={deleteTransaction} onEdit={startEditingTransaction} onDuplicate={duplicateTransaction} onCopy={copyTransaction} onTogglePaid={togglePaid} onToggleHidden={toggleHidden} visibility={visibility} userName={users.find(u => u.id === tx.userId)?.name || ''} />
+                <TransactionItem key={`${tx.id}-${tx.currentInstallment}`} tx={tx} onDelete={deleteTransaction} onEdit={startEditingTransaction} onDuplicate={duplicateTransaction} onCopy={copyTransaction} onTogglePaid={togglePaid} onToggleHidden={toggleHidden} visibility={visibility} userName={users.find(u => u.id === tx.userId)?.name || ''} userColor={users.find(u => u.id === tx.userId)?.color} />
               ))}
             </div>
           </div>
@@ -1356,6 +1392,7 @@ const Dashboard: React.FC = () => {
                               onToggleHidden={toggleHidden}
                               visibility={visibility}
                               userName={users.find(u => u.id === tx.userId)?.name || ''}
+                              userColor={users.find(u => u.id === tx.userId)?.color}
                             />
                           ))
                         )}
