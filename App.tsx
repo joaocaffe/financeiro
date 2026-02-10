@@ -47,6 +47,7 @@ import {
   AlertTriangle,
   SlidersHorizontal,
   CalendarRange,
+  ArrowUpDown,
   BarChart3,
   Columns,
   Check,
@@ -117,6 +118,7 @@ const Dashboard: React.FC = () => {
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
   const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
   const [cardToDelete, setCardToDelete] = useState<string | null>(null);
+  const [cardSortOrder, setCardSortOrder] = useState<'default' | 'asc' | 'desc'>('default');
 
   const contentRef = useRef<HTMLElement>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
@@ -1299,7 +1301,20 @@ const Dashboard: React.FC = () => {
             {cards.filter(c => showHiddenItems || !c.isHidden).map(card => {
               const cardTxs = periodTransactions.filter(t => t.cardId === card.id && isUserVisible(t.userId));
               const cardTotal = cardTxs.filter(t => includeHiddenInStats || !t.isHidden).reduce((acc, t) => acc + (t.isSubscription ? t.totalValue : t.totalValue / t.installments), 0);
-              const cardVisibleTxs = cardTxs.filter(t => showHiddenItems || !t.isHidden);
+              let cardVisibleTxs = cardTxs.filter(t => showHiddenItems || !t.isHidden);
+
+              if (cardSortOrder !== 'default') {
+                cardVisibleTxs = [...cardVisibleTxs].sort((a, b) => {
+                  const dateA = a.purchaseDate || a.date;
+                  const dateB = b.purchaseDate || b.date;
+                  if (cardSortOrder === 'asc') {
+                    return dateA.localeCompare(dateB);
+                  } else {
+                    return dateB.localeCompare(dateA);
+                  }
+                });
+              }
+
               const isExpanded = expandedCardId === card.id;
 
               return (
@@ -1367,6 +1382,22 @@ const Dashboard: React.FC = () => {
                           </h5>
                         </div>
                         <div className="flex items-center gap-1">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCardSortOrder(current => {
+                                if (current === 'default') return 'asc';
+                                if (current === 'asc') return 'desc';
+                                return 'default';
+                              });
+                            }}
+                            className={`p-2 transition-all rounded-xl ${cardSortOrder !== 'default' ? 'bg-blue-50 text-blue-600' : 'text-slate-400 hover:text-blue-500 hover:bg-slate-50'}`}
+                            title="Ordenar por Data"
+                          >
+                            {cardSortOrder === 'default' && <ArrowUpDown size={14} />}
+                            {cardSortOrder === 'asc' && <ArrowUp size={14} />}
+                            {cardSortOrder === 'desc' && <ArrowDown size={14} />}
+                          </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); startEditingCard(card); }}
                             className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-all"
