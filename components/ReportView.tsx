@@ -4,6 +4,7 @@ import { Transaction, User, CreditCard } from '../types';
 import { calculateTransactionValue, formatDate } from '../utils/transactionUtils';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import { MONTHS } from '../constants';
 
 interface ExtendedTransaction extends Transaction {
     currentInstallment?: string | number;
@@ -11,16 +12,18 @@ interface ExtendedTransaction extends Transaction {
 
 interface ReportViewProps {
     transactions: ExtendedTransaction[];
+    allTransactions: Transaction[];
     users: User[];
     cards: CreditCard[];
     currentDate: Date;
+    includeHiddenInStats: boolean;
     onClose: () => void;
     type?: 'general' | 'cards';
 }
 
 const ITEMS_PER_PAGE = 25;
 
-export const ReportView: React.FC<ReportViewProps> = ({ transactions, users, cards, currentDate, onClose, type = 'general' }) => {
+export const ReportView: React.FC<ReportViewProps> = ({ transactions, allTransactions, users, cards, currentDate, includeHiddenInStats, onClose, type = 'general' }) => {
     // printContainerRef for PDF generation
     const printContainerRef = useRef<HTMLDivElement>(null);
     // screenRef for JPG generation
@@ -56,7 +59,50 @@ export const ReportView: React.FC<ReportViewProps> = ({ transactions, users, car
             const cardTxs = transactions.filter(tx => tx.cardId === card.id);
             const total = cardTxs.reduce((acc, tx) => acc + calculateTransactionValue(tx), 0);
             const visible = cardTxs.filter(tx => !tx.isHidden).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-            return { card, total, visible, hasHidden: cardTxs.some(tx => tx.isHidden) };
+
+            // Calculate 6-month projection for this specific card
+            const projections = [];
+            for (let i = 0; i < 6; i++) {
+                const projDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + i, 1);
+                const pMonth = projDate.getMonth();
+                const pYear = projDate.getFullYear();
+
+                const monthlyTotal = allTransactions
+                    .filter(tx => tx.cardId === card.id && (includeHiddenInStats || !tx.isHidden))
+                    .flatMap(tx => {
+                        const results = [];
+                        const baseDate = tx.paymentStartMonth ? new Date(tx.paymentStartMonth + '-02') : new Date(tx.date);
+
+                        if (tx.isSubscription) {
+                            const startIdx = baseDate.getFullYear() * 12 + baseDate.getMonth();
+                            const targetIdx = pYear * 12 + pMonth;
+                            if (targetIdx >= startIdx) results.push(tx.totalValue);
+                        } else {
+                            const startIdx = baseDate.getFullYear() * 12 + baseDate.getMonth();
+                            const targetIdx = pYear * 12 + pMonth;
+                            const installments = tx.installments || 1;
+                            const paidCount = tx.installmentsPaid || 0;
+
+                            // Check if pMonth falls within the remaining installments range
+                            // The budget month for installment 'j' is startIdx + j
+                            for (let j = 0; j < installments - paidCount; j++) {
+                                if (startIdx + j === targetIdx) {
+                                    results.push(tx.totalValue / installments);
+                                }
+                            }
+                        }
+                        return results;
+                    })
+                    .reduce((acc, val) => acc + val, 0);
+
+                projections.push({
+                    month: MONTHS[pMonth].substring(0, 3),
+                    year: pYear,
+                    total: monthlyTotal
+                });
+            }
+
+            return { card, total, visible, projections, hasHidden: cardTxs.some(tx => tx.isHidden) };
         }).filter(g => g.total > 0) : [];
 
         return { totalSpending, visibleTransactions, totalInputs, netResult, cardGroups };
@@ -372,6 +418,16 @@ export const ReportView: React.FC<ReportViewProps> = ({ transactions, users, car
                                                 <CreditCardIcon size={16} />
                                             </div>
                                             <div>
+                                                <div className="flex flex-wrap gap-1 mb-1">
+                                                    {group.projections.map((p: any, i: number) => (
+                                                        <div key={i} className="flex flex-col items-center bg-white px-1.5 py-0.5 rounded border border-slate-100 min-w-[40px]">
+                                                            <span className="text-[7px] font-black text-slate-400 uppercase leading-none">{p.month}</span>
+                                                            <span className={`text-[8px] font-bold ${p.total > 0 ? 'text-indigo-600' : 'text-slate-300'}`}>
+                                                                {p.total.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
                                                 <h3 className="font-bold text-slate-700 text-sm">{group.card.name}</h3>
                                                 <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Vencimento Dia {group.card.dueDay}</p>
                                             </div>
@@ -482,7 +538,19 @@ export const ReportView: React.FC<ReportViewProps> = ({ transactions, users, car
                                 {page.type === 'cards' && page.cardGroup && (
                                     <div>
                                         <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-2 bg-slate-50 p-2 rounded">
-                                            <h3 className="font-bold text-slate-700">{page.cardGroup.card.name}</h3>
+                                            <div>
+                                                <div className="flex gap-1 mb-1">
+                                                    {page.cardGroup.projections.map((p: any, i: number) => (
+                                                        <div key={i} className="flex flex-col items-center bg-white px-1 py-0.5 rounded border border-slate-200 min-w-[35px]">
+                                                            <span className="text-[6px] font-black text-slate-400 uppercase leading-none">{p.month}</span>
+                                                            <span className={`text-[7px] font-bold ${p.total > 0 ? 'text-indigo-500' : 'text-slate-300'}`}>
+                                                                {p.total.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <h3 className="font-bold text-slate-700">{page.cardGroup.card.name}</h3>
+                                            </div>
                                             <span className="font-black text-indigo-600">Total: R$ {page.cardGroup.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                                         </div>
                                         <table className="w-full text-left border-collapse">
