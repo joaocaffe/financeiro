@@ -19,11 +19,13 @@ interface ReportViewProps {
     includeHiddenInStats: boolean;
     onClose: () => void;
     type?: 'general' | 'cards';
+    selectedUserIds?: string[];
+    selectedCardIds?: string[];
 }
 
 const ITEMS_PER_PAGE = 25;
 
-export const ReportView: React.FC<ReportViewProps> = ({ transactions, allTransactions, users, cards, currentDate, includeHiddenInStats, onClose, type = 'general' }) => {
+export const ReportView: React.FC<ReportViewProps> = ({ transactions, allTransactions, users, cards, currentDate, includeHiddenInStats, onClose, type = 'general', selectedUserIds = ['all'], selectedCardIds = ['all'] }) => {
     // printContainerRef for PDF generation
     const printContainerRef = useRef<HTMLDivElement>(null);
     // screenRef for JPG generation
@@ -68,7 +70,12 @@ export const ReportView: React.FC<ReportViewProps> = ({ transactions, allTransac
                 const pYear = projDate.getFullYear();
 
                 const monthlyTotal = allTransactions
-                    .filter(tx => tx.cardId === card.id && (includeHiddenInStats || !tx.isHidden))
+                    .filter(tx => {
+                        const isUserMatch = selectedUserIds.includes('all') || selectedUserIds.includes(tx.userId);
+                        const isCardMatch = selectedCardIds.includes('all') || (tx.cardId ? selectedCardIds.includes(tx.cardId) : selectedCardIds.includes('direto'));
+                        const isHiddenMatch = includeHiddenInStats || !tx.isHidden;
+                        return tx.cardId === card.id && isUserMatch && isCardMatch && isHiddenMatch;
+                    })
                     .flatMap(tx => {
                         const results = [];
                         const baseDate = tx.paymentStartMonth ? new Date(tx.paymentStartMonth + '-02') : new Date(tx.date);

@@ -962,13 +962,19 @@ const Dashboard: React.FC = () => {
       {
         showReport && (
           <ReportView
-            transactions={periodTransactions.filter(tx => isUserVisible(tx.userId) && (reportType === 'cards' ? tx.cardId : !tx.cardId))}
+            transactions={periodTransactions.filter(tx =>
+              isUserVisible(tx.userId) &&
+              isCardVisible(tx.cardId) &&
+              (reportType === 'cards' ? tx.cardId : !tx.cardId)
+            )}
             allTransactions={transactions}
             includeHiddenInStats={includeHiddenInStats}
             users={users}
             cards={cards}
             currentDate={currentDate}
             type={reportType}
+            selectedUserIds={selectedUserIds}
+            selectedCardIds={selectedCardIds}
             onClose={() => setShowReport(false)}
           />
         )
